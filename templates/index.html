@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bharat Exam Fest — UPSC Mains AI Answer Evaluator</title>
+    <link rel="icon" type="image/x-icon" href="https://bharatexamfest.com/favicon.ico">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Top Banner -->
+    <div class="top-banner">
+        <div class="container">
+            <div class="banner-text">Let's Celebrate this Exam Festival</div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="main-nav">
+        <div class="container">
+            <a href="/" class="logo-wrapper">
+                <img src="https://bharatexamfest.com/logo.png" alt="Bharat Exam Fest" class="logo-img" onerror="this.src='https://via.placeholder.com/60x60?text=Logo'">
+                <div class="logo-text-group">
+                    <span class="logo-brand">Bharat Exam Fest</span>
+                    <span class="logo-slogan">Learn & Earn</span>
+                </div>
+            </a>
+            <div class="nav-menu">
+                <a href="#" class="nav-link">Download Now</a>
+                <a href="#" class="nav-link">Workshop</a>
+                <a href="#" class="nav-link">Course</a>
+                <button class="btn-login">Login</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">Let's Celebrate this Exam Festival</h1>
+                <p class="hero-description">
+                    First ever in History of UPSC!!! Revolutionizing UPSC Prelims with AI and Advanced Reporting.
+                </p>
+                <a href="#" class="play-store-btn">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" height="40">
+                </a>
+            </div>
+            <div class="hero-image">
+                <img src="https://bharatexamfest.com/hero-image.png" alt="App Mockup" onerror="this.src='https://via.placeholder.com/450x600?text=App+Mockup'">
+            </div>
+        </div>
+    </section>
+
+    <!-- Evaluator Form Section -->
+    <section class="evaluator-container">
+        <div class="container">
+            <div class="section-header" style="text-align: center; margin-bottom: 50px;">
+                <h2 style="font-size: 36px; color: var(--primary-orange); font-weight: 800;">UPSC Mains AI Answer Evaluator</h2>
+                <div class="main-tabs" style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                    <button class="tab-btn active" data-main-tab="single">Single Evaluation</button>
+                    <button class="tab-btn" data-main-tab="bulk">Bulk Evaluation (PDF)</button>
+                    <button class="tab-btn" data-main-tab="notes">Mains Notes</button>
+                    <button class="tab-btn" data-main-tab="jobs">My Evaluations</button>
+                    <button class="tab-btn" data-main-tab="flashcards">Flashcards</button>
+                </div>
+            </div>
+
+                <div id="single-evaluation-container">
+                    <form id="evaluatorForm">
+                        <div class="evaluator-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; margin-bottom: 40px;">
+                            <!-- Question Input -->
+                            <div class="input-card">
+                                <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 20px; font-size: 18px;">Your Question</label>
+                                <div class="tab-switcher">
+                                    <button type="button" class="tab-btn active" data-tab="question-text">Type Question</button>
+                                    <button type="button" class="tab-btn" data-tab="question-image">Upload Image</button>
+                                </div>
+
+                                <div class="tab-content" id="question-text">
+                                    <textarea name="question_text" placeholder="Paste or type your UPSC Mains question here..."></textarea>
+                                </div>
+                                <div class="tab-content hidden" id="question-image">
+                                    <div class="upload-zone" id="question-upload-zone">
+                                        <input type="file" name="question_image" id="question-file-input" hidden accept="image/*">
+                                        <div class="upload-placeholder">
+                                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 40px; color: #ccc; margin-bottom: 15px;"></i>
+                                            <p>Click or drag an image of the question</p>
+                                        </div>
+                                        <div class="preview-container hidden">
+                                            <img src="" alt="Preview" class="image-preview" style="max-height: 200px; border-radius: 10px;">
+                                            <button type="button" class="remove-btn">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Settings Row -->
+                                <div style="display: flex; gap: 20px; margin-top: 20px;">
+                                    <!-- Language Selection -->
+                                    <div class="language-selection" style="flex: 1;">
+                                        <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 10px; font-size: 16px;">Evaluation Language</label>
+                                        <select name="language" id="language-select" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px;">
+                                            <option value="English" selected>English</option>
+                                            <option value="Assamese">Assamese</option>
+                                            <option value="Bengali">Bengali</option>
+                                            <option value="Bodo">Bodo</option>
+                                            <option value="Dogri">Dogri</option>
+                                            <option value="Gujarati">Gujarati</option>
+                                            <option value="Hindi">Hindi</option>
+                                            <option value="Kannada">Kannada</option>
+                                            <option value="Kashmiri">Kashmiri</option>
+                                            <option value="Konkani">Konkani</option>
+                                            <option value="Maithili">Maithili</option>
+                                            <option value="Malayalam">Malayalam</option>
+                                            <option value="Manipuri (Meitei)">Manipuri (Meitei)</option>
+                                            <option value="Marathi">Marathi</option>
+                                            <option value="Nepali">Nepali</option>
+                                            <option value="Odia (formerly Oriya)">Odia (formerly Oriya)</option>
+                                            <option value="Punjabi">Punjabi</option>
+                                            <option value="Sanskrit">Sanskrit</option>
+                                            <option value="Santali">Santali</option>
+                                            <option value="Sindhi">Sindhi</option>
+                                            <option value="Tamil">Tamil</option>
+                                            <option value="Telugu">Telugu</option>
+                                            <option value="Urdu">Urdu</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Max Marks Selection -->
+                                    <div class="marks-selection" style="flex: 1;">
+                                        <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 10px; font-size: 16px;">Max Marks</label>
+                                        <input type="number" name="max_marks" id="max-marks-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px;" value="10" min="1" max="100">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Answer Input -->
+                            <div class="input-card">
+                                <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 20px; font-size: 18px;">Your Answer</label>
+                                <div class="tab-switcher">
+                                    <button type="button" class="tab-btn active" data-tab="answer-text">Type Answer</button>
+                                    <button type="button" class="tab-btn" data-tab="answer-image">Upload Image</button>
+                                </div>
+
+                                <div class="tab-content" id="answer-text">
+                                    <textarea name="answer_text" placeholder="Write your answer here as you would in the actual exam..." id="answer-textarea"></textarea>
+                                    <div class="char-counter" id="char-counter" style="text-align: right; font-size: 12px; margin-top: 10px; color: var(--text-muted);">0 characters</div>
+                                </div>
+                                <div class="tab-content hidden" id="answer-image">
+                                    <div class="upload-zone" id="answer-upload-zone">
+                                        <input type="file" name="answer_image" id="answer-file-input" hidden accept="image/*">
+                                        <div class="upload-placeholder">
+                                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 40px; color: #ccc; margin-bottom: 15px;"></i>
+                                            <p>Click or drag an image of your answer</p>
+                                        </div>
+                                        <div class="preview-container hidden">
+                                            <img src="" alt="Preview" class="image-preview" style="max-height: 200px; border-radius: 10px;">
+                                            <button type="button" class="remove-btn">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom System Prompt (Collapsible) -->
+                        <div class="input-card" style="margin-bottom: 40px;">
+                            <div id="system-prompt-toggle" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                                <label class="input-label" style="margin-bottom: 0; font-size: 18px; font-weight: 700;">
+                                    <i class="fa-solid fa-robot" style="margin-right: 10px; color: var(--primary-orange);"></i>
+                                    AI Instructions (System Prompt) — <small style="font-weight: 400; color: var(--text-muted);">Optional</small>
+                                </label>
+                                <i class="fa-solid fa-chevron-down" id="prompt-chevron" style="transition: transform 0.3s;"></i>
+                            </div>
+                            <div id="system-prompt-container" class="hidden" style="margin-top: 20px; animation: fadeIn 0.3s ease-out;">
+                                <textarea name="system_prompt" placeholder="Give custom instructions to the AI (e.g., 'Focus more on my handwriting' or 'Evaluate like a very strict examiner'). Leave blank to use the default UPSC evaluator prompt." style="min-height: 150px;"></textarea>
+                            </div>
+                        </div>
+
+
+                        <div style="display: flex; justify-content: center;">
+                            <button type="submit" class="btn-submit" id="submitBtn">
+                                <span class="btn-text">Evaluate My Answer →</span>
+                                <div class="spinner hidden"></div>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Bulk Evaluation Container -->
+                <div id="bulk-evaluation-container" class="hidden">
+                    <div class="input-card">
+                        <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 20px; font-size: 18px;">Bulk PDF Evaluation (Up to 20 Questions)</label>
+                        <p style="color: var(--text-muted); margin-bottom: 20px;">Upload a PDF containing up to 20 questions and answers. Results will be available in 2 hours.</p>
+                        
+                        <form id="bulkForm">
+                            <div class="upload-zone" id="bulk-upload-zone" style="height: 200px; margin-bottom: 30px;">
+                                <input type="file" name="pdf_file" id="bulk-file-input" hidden accept="application/pdf">
+                                <div class="upload-placeholder">
+                                    <i class="fa-solid fa-file-pdf" style="font-size: 40px; color: #ccc; margin-bottom: 15px;"></i>
+                                    <p>Click or drag your PDF here</p>
+                                </div>
+                                <div class="preview-container hidden">
+                                    <div style="text-align: center;">
+                                        <i class="fa-solid fa-file-pdf" style="font-size: 50px; color: var(--primary-orange);"></i>
+                                        <p id="pdf-filename" style="margin-top: 10px; font-weight: 600;"></p>
+                                    </div>
+                                    <button type="button" class="remove-btn">✕</button>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 20px; margin-bottom: 30px;">
+                                <div style="flex: 1;">
+                                    <label class="input-label">Language</label>
+                                    <select name="language" class="form-control" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd;">
+                                        <option value="English" selected>English</option>
+                                        <option value="Assamese">Assamese</option>
+                                        <option value="Bengali">Bengali</option>
+                                        <option value="Bodo">Bodo</option>
+                                        <option value="Dogri">Dogri</option>
+                                        <option value="Gujarati">Gujarati</option>
+                                        <option value="Hindi">Hindi</option>
+                                        <option value="Kannada">Kannada</option>
+                                        <option value="Kashmiri">Kashmiri</option>
+                                        <option value="Konkani">Konkani</option>
+                                        <option value="Maithili">Maithili</option>
+                                        <option value="Malayalam">Malayalam</option>
+                                        <option value="Manipuri (Meitei)">Manipuri (Meitei)</option>
+                                        <option value="Marathi">Marathi</option>
+                                        <option value="Nepali">Nepali</option>
+                                        <option value="Odia (formerly Oriya)">Odia (formerly Oriya)</option>
+                                        <option value="Punjabi">Punjabi</option>
+                                        <option value="Sanskrit">Sanskrit</option>
+                                        <option value="Santali">Santali</option>
+                                        <option value="Sindhi">Sindhi</option>
+                                        <option value="Tamil">Tamil</option>
+                                        <option value="Telugu">Telugu</option>
+                                        <option value="Urdu">Urdu</option>
+                                    </select>
+                                </div>
+                                <div style="flex: 1;">
+                                    <label class="input-label">Max Marks per Question</label>
+                                    <input type="number" name="max_marks" value="10" class="form-control" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd;">
+                                </div>
+                            </div>
+
+                            <!-- Custom System Prompt for Bulk (Collapsible) -->
+                            <div class="input-card" style="margin-bottom: 40px; margin-top: 30px;">
+                                <div id="bulk-system-prompt-toggle" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                                    <label class="input-label" style="margin-bottom: 0; font-size: 18px; font-weight: 700;">
+                                        <i class="fa-solid fa-robot" style="margin-right: 10px; color: var(--primary-orange);"></i>
+                                        AI Instructions (System Prompt) — <small style="font-weight: 400; color: var(--text-muted);">Optional</small>
+                                    </label>
+                                    <i class="fa-solid fa-chevron-down" id="bulk-prompt-chevron" style="transition: transform 0.3s;"></i>
+                                </div>
+                                <div id="bulk-system-prompt-container" class="hidden" style="margin-top: 20px; animation: fadeIn 0.3s ease-out;">
+                                    <textarea name="system_prompt" placeholder="Give custom instructions for all 20 questions (e.g., 'Focus more on my handwriting' or 'Evaluate like a very strict examiner'). Leave blank to use the default UPSC evaluator prompt." style="min-height: 150px;"></textarea>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: center;">
+                                <button type="submit" class="btn-submit" id="bulkSubmitBtn">
+                                    <span class="btn-text">Submit for Bulk Evaluation →</span>
+                                    <div class="spinner hidden"></div>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- My Evaluations Container -->
+                <div id="jobs-container" class="hidden">
+                    <div class="input-card">
+                        <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 20px; font-size: 18px;">My Evaluations</label>
+                        <div id="job-list">
+                            <p style="color: var(--text-muted); text-align: center; padding: 20px;">No evaluations submitted yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mains Notes Container -->
+                <div id="notes-container" class="hidden">
+                    <div class="input-card">
+                        <label class="input-label" style="display: block; font-weight: 700; margin-bottom: 20px; font-size: 18px;">Mains Notes Generator</label>
+                        <p style="color: var(--text-muted); margin-bottom: 25px;">Enter a topic to get detailed, multi-dimensional UPSC notes instantly.</p>
+                        
+                        <form id="notesForm">
+                            <div style="margin-bottom: 25px;">
+                                <label class="input-label">Enter Topic</label>
+                                <input type="text" name="topic" placeholder="Type your topic here..." required style="width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #ddd; font-size: 16px;">
+                            </div>
+                            
+                            <div style="margin-bottom: 30px;">
+                                <label class="input-label">Notes Language</label>
+                                <select name="language" style="width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #ddd; font-size: 16px;">
+                                    <option value="English" selected>English</option>
+                                    <option value="Assamese">Assamese</option>
+                                    <option value="Bengali">Bengali</option>
+                                    <option value="Bodo">Bodo</option>
+                                    <option value="Dogri">Dogri</option>
+                                    <option value="Gujarati">Gujarati</option>
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Kannada">Kannada</option>
+                                    <option value="Kashmiri">Kashmiri</option>
+                                    <option value="Konkani">Konkani</option>
+                                    <option value="Maithili">Maithili</option>
+                                    <option value="Malayalam">Malayalam</option>
+                                    <option value="Manipuri (Meitei)">Manipuri (Meitei)</option>
+                                    <option value="Marathi">Marathi</option>
+                                    <option value="Nepali">Nepali</option>
+                                    <option value="Odia (formerly Oriya)">Odia (formerly Oriya)</option>
+                                    <option value="Punjabi">Punjabi</option>
+                                    <option value="Sanskrit">Sanskrit</option>
+                                    <option value="Santali">Santali</option>
+                                    <option value="Sindhi">Sindhi</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="Urdu">Urdu</option>
+                                </select>
+                            </div>
+
+                            <div style="display: flex; justify-content: center;">
+                                <button type="submit" class="btn-submit" id="notesSubmitBtn">
+                                    <span class="btn-text">Generate Full Notes →</span>
+                                    <div class="spinner hidden"></div>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Flashcard Container -->
+                <div id="flashcards-container" class="hidden">
+
+                  <!-- Input Form -->
+                  <div id="flashcard-input-panel">
+                    <div class="input-card" style="max-width: 700px; margin: 0 auto 40px auto;">
+                      <label class="input-label" style="font-size: 18px; font-weight: 700; display: block; margin-bottom: 20px;">Generate Flashcards</label>
+
+                      <!-- Source Tabs -->
+                      <div class="tab-switcher" style="margin-bottom: 20px;">
+                        <button type="button" class="tab-btn active" data-fc-src="topic">By Topic</button>
+                        <button type="button" class="tab-btn" data-fc-src="content">Paste Content</button>
+                      </div>
+
+                      <div id="fc-topic-input">
+                        <input type="text" id="fc-topic" placeholder="e.g. Indian Foreign Policy, Green Revolution, Article 370..."
+                          style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box;" />
+                      </div>
+
+                      <div id="fc-content-input" class="hidden">
+                        <textarea id="fc-content" placeholder="Paste your notes, chapter, or any text here. Gemini will generate flashcards from it."
+                          style="width: 100%; min-height: 160px; padding: 14px; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; box-sizing: border-box; resize: vertical;"></textarea>
+                      </div>
+
+                      <!-- Settings Row -->
+                      <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 140px;">
+                          <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Number of Cards</label>
+                          <select id="fc-num-cards" 
+                            style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box;">
+                            <option value="0">Auto (Cover whole content)</option>
+                            <option value="10">10 Cards</option>
+                            <option value="20" selected>20 Cards</option>
+                            <option value="30">30 Cards</option>
+                            <option value="40">40 Cards</option>
+                          </select>
+                        </div>
+                        <div style="flex: 1; min-width: 160px;">
+                          <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Language</label>
+                          <select id="fc-language"
+                            style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box;">
+                            <option value="English">English</option>
+                            <option value="Hindi">Hindi</option>
+                            <option value="Gujarati">Gujarati</option>
+                            <option value="Bengali">Bengali</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Telugu">Telugu</option>
+                            <option value="Marathi">Marathi</option>
+                            <option value="Kannada">Kannada</option>
+                            <option value="Malayalam">Malayalam</option>
+                            <option value="Punjabi">Punjabi</option>
+                            <option value="Odia (formerly Oriya)">Odia</option>
+                            <option value="Urdu">Urdu</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style="margin-top: 30px; text-align: center;">
+                        <button id="fc-generate-btn" class="btn-submit" style="min-width: 220px;">
+                          <span class="btn-text">✨ Generate Flashcards</span>
+                          <div class="spinner hidden"></div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Flashcard Viewer -->
+                  <div id="flashcard-viewer" class="hidden">
+                    <div style="max-width: 680px; margin: 0 auto;">
+
+                      <!-- Header -->
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                          <h2 id="fc-set-title" style="color: var(--primary-orange); font-size: 22px; margin: 0;"></h2>
+                          <p id="fc-mode-label" style="color: #888; font-size: 13px; margin: 4px 0 0 0;">Studying all cards</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                          <button id="fc-shuffle-btn" class="fc-ctrl-btn" title="Shuffle">⇄ Shuffle</button>
+                          <button id="fc-test-btn" class="fc-ctrl-btn" title="Test only incorrect cards">🎯 Test Incorrect</button>
+                          <button id="fc-restart-btn" class="fc-ctrl-btn" title="Restart">↺ Restart</button>
+                          <button id="fc-new-btn" class="fc-ctrl-btn fc-ctrl-btn--orange" title="Generate new set">＋ New Set</button>
+                        </div>
+                      </div>
+
+                      <!-- Card -->
+                      <div id="fc-card-wrapper" style="perspective: 1200px; margin-bottom: 28px; cursor: pointer;" onclick="fcFlipCard()">
+                        <div id="fc-card" class="fc-card">
+                          <div class="fc-card-front">
+                            <div class="fc-card-counter" id="fc-counter">- / -</div>
+                            <div class="fc-card-body" id="fc-question-text"></div>
+                            <div class="fc-card-hint">Tap to see answer</div>
+                          </div>
+                          <div class="fc-card-back">
+                            <div class="fc-card-counter" id="fc-counter-back">- / -</div>
+                            <div class="fc-card-tag">Answer</div>
+                            <div class="fc-card-body" id="fc-answer-text"></div>
+                            <div class="fc-card-hint">Tap to see question</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Navigation & Score Row -->
+                      <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 24px;">
+                        <button class="fc-nav-btn" onclick="fcPrev()" title="Previous">←</button>
+
+                        <button class="fc-score-btn fc-incorrect-btn" onclick="fcMarkIncorrect()" title="Mark as incorrect">
+                          <span style="color: #ff4d4d;">✗</span>
+                          <span id="fc-incorrect-count">0</span>
+                        </button>
+
+                        <button class="fc-score-btn fc-correct-btn" onclick="fcMarkCorrect()" title="Mark as correct">
+                          <span id="fc-correct-count">0</span>
+                          <span style="color: #4dff88;">✓</span>
+                        </button>
+
+                        <button class="fc-nav-btn" onclick="fcNext()" title="Next">→</button>
+                      </div>
+
+                      <!-- Progress Bar -->
+                      <div style="background: #eee; border-radius: 999px; height: 6px; overflow: hidden; margin-bottom: 24px;">
+                        <div id="fc-progress-bar" style="height: 100%; background: var(--primary-orange); border-radius: 999px; transition: width 0.3s ease; width: 0%;"></div>
+                      </div>
+
+                      <!-- Completion Message -->
+                      <div id="fc-completion" class="hidden" style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 20px; border: 1px solid #eee;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+                        <h3 style="color: var(--text-dark); font-size: 24px; margin-bottom: 8px;">Set Complete!</h3>
+                        <p id="fc-final-score" style="color: var(--text-muted); font-size: 16px; margin-bottom: 24px;"></p>
+                        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                          <button class="fc-ctrl-btn" onclick="fcRestart()">↺ Restart All</button>
+                          <button id="fc-retry-incorrect-btn" class="fc-ctrl-btn" onclick="fcStartTestMode()">🎯 Retry Incorrect</button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                </div>
+
+            <div id="error-box" class="error-message hidden"></div>
+        </div>
+    </section>
+
+    <!-- Result Section -->
+    <section id="result-container" class="container result-container hidden">
+        <div class="result-card" id="result-card">
+            <!-- Results will be injected here -->
+        </div>
+        <button class="btn-reset" id="resetBtn">Try Another Question</button>
+    </section>
+
+    <!-- Floating Action Button -->
+    <div class="fab">
+        <i class="fa-solid fa-phone"></i>
+    </div>
+
+    <footer style="background: #333; color: white; padding: 40px 0; text-align: center; margin-top: 50px;">
+        <div class="container">
+            <p>© 2026 Bharat Exam Fest. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
