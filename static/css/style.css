@@ -616,19 +616,20 @@ textarea:focus {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  border: none;
+  border: 2px solid transparent;
   background: #f0f2f5;
   color: var(--secondary-teal);
   font-size: 20px;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  outline: none;
 }
 
 .fc-nav-btn:hover {
-  background: #e0e4ea;
+  border-color: var(--secondary-teal);
   transform: scale(1.08);
 }
 
@@ -637,7 +638,7 @@ textarea:focus {
   min-width: 72px;
   padding: 0 18px;
   border-radius: 999px;
-  border: none;
+  border: 2px solid transparent;
   background: #f0f2f5;
   color: var(--text-dark);
   font-size: 16px;
@@ -646,16 +647,25 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: background 0.2s, transform 0.1s;
+  transition: all 0.2s;
+  outline: none;
 }
 
 .fc-score-btn:hover {
-  background: #e0e4ea;
   transform: scale(1.05);
 }
 
-.fc-incorrect-btn:hover { background: #ffe0e0; }
-.fc-correct-btn:hover   { background: #e0ffe8; }
+.fc-incorrect-btn { background: #ffe0e0; }
+.fc-incorrect-btn:hover { background: #ffcfcf; }
+.fc-incorrect-btn:hover, .fc-incorrect-btn:active, .fc-incorrect-btn:focus { 
+  border-color: #ff4d4d; 
+}
+
+.fc-correct-btn { background: #e0ffe8; }
+.fc-correct-btn:hover { background: #cfffda; }
+.fc-correct-btn:hover, .fc-correct-btn:active, .fc-correct-btn:focus { 
+  border-color: #4dff88; 
+}
 
 .fc-ctrl-btn {
   padding: 9px 18px;
