@@ -792,7 +792,8 @@ function renderNotesResult(markdown, topic) {
             set_title: fc.title,
             correct_count: correct,
             incorrect_count: incorrect,
-            total_cards: total
+            total_cards: total,
+            incorrect_indices: Array.from(fc.incorrect)
           })
         });
       } catch (err) {
@@ -806,25 +807,69 @@ function renderNotesResult(markdown, topic) {
       container.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1/-1;">Loading saved sets...</p>';
 
       try {
-        const resp = await fetch('/api/flashcard_sets');
-        const sets = await resp.json();
+        const [setsResp, statsResp] = await Promise.all([
+          fetch('/api/flashcard_sets'),
+          fetch('/api/performance')
+        ]);
+        const sets = await setsResp.json();
+        const stats = await statsResp.json();
 
         if (sets.length === 0) {
           container.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1/-1;">No saved sets found. Generate some first!</p>';
           return;
         }
 
-        container.innerHTML = sets.map(s => `
-          <div class="job-item" style="padding: 15px; border: 1px solid #eee; border-radius: 12px; cursor: pointer; transition: transform 0.2s; background: white;" 
-               onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'"
-               onclick="viewSavedSet('${s._id}')">
-            <div style="font-weight: 700; color: var(--primary-orange); margin-bottom: 8px;">${s.title}</div>
-            <div style="font-size: 13px; color: #666;">${s.cards.length} Cards • ${s.language}</div>
-            <div style="font-size: 11px; color: #999; margin-top: 10px;">Saved: ${new Date(s.created_at).toLocaleDateString()}</div>
-          </div>
-        `).join('');
+        // Map latest session to each set
+        const setStats = {};
+        stats.forEach(s => {
+          if (!setStats[s.set_id]) setStats[s.set_id] = s;
+        });
+
+        container.innerHTML = sets.map(s => {
+          const lastSession = setStats[s._id];
+          // Robust check for wrong cards
+          const hasWrong = lastSession && (
+            (lastSession.incorrect_indices && lastSession.incorrect_indices.length > 0) ||
+            (lastSession.incorrect_count > 0)
+          );
+          
+          console.log(`Set: ${s.title}, Last Session:`, lastSession);
+
+          return `
+            <div class="job-item" style="padding: 20px; border: 1px solid #eee; border-radius: 15px; background: white; display: flex; flex-direction: column; gap: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(0,0,0,0.03);"
+                 onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 12px 25px rgba(0,0,0,0.08)';" 
+                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.03)';">
+              <div>
+                <div style="font-weight: 700; color: var(--primary-orange); font-size: 16px; margin-bottom: 4px;">${s.title}</div>
+                <div style="font-size: 13px; color: #666;">${s.cards.length} Cards • ${s.language}</div>
+              </div>
+              
+              ${lastSession ? `
+                <div style="background: #fff8f8; padding: 10px 12px; border-radius: 10px; font-size: 13px; border: 1px solid #ffebeb;">
+                  <span style="color: #888;">Last Performance:</span> 
+                  <b style="color: ${lastSession.incorrect_count === 0 ? '#2ecc71' : '#e74c3c'}; font-size: 15px;">
+                    ${lastSession.correct_count}/${lastSession.total_cards} Correct
+                  </b>
+                </div>
+              ` : ''}
+
+              <div style="display: flex; gap: 10px; margin-top: auto; padding-top: 10px;">
+                <button class="fc-ctrl-btn fc-ctrl-btn--orange" style="flex: 1; font-size: 14px; padding: 10px 0;" onclick="viewSavedSet('${s._id}')">
+                  Study All
+                </button>
+                ${hasWrong ? `
+                  <button class="fc-ctrl-btn" style="flex: 1; font-size: 14px; padding: 10px 0; background: #fff1f1; border-color: #ffcccc; color: #e74c3c; font-weight: 700;" 
+                          onclick="viewSavedSetIncorrect('${s._id}')">
+                    Retry Wrong (${lastSession.incorrect_indices ? lastSession.incorrect_indices.length : lastSession.incorrect_count})
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
 
         window.savedSetsCache = sets;
+        window.setStatsCache = setStats;
       } catch (err) {
         container.innerHTML = `<p style="color: red; text-align: center; grid-column: 1/-1;">Error: ${err.message}</p>`;
       }
@@ -834,6 +879,29 @@ function renderNotesResult(markdown, topic) {
       const s = window.savedSetsCache.find(x => x._id === id);
       if (s) {
         fcInit(s.cards, s.title, s._id, s.language);
+      }
+    };
+
+    window.viewSavedSetIncorrect = (id) => {
+      const s = window.savedSetsCache.find(x => x._id === id);
+      const stats = window.setStatsCache[id];
+      if (s && stats) {
+        if (!stats.incorrect_indices || stats.incorrect_indices.length === 0) {
+          alert("Sorry, this is an older session that didn't save which specific cards were wrong. Please complete a 'Study All' session first!");
+          return;
+        }
+        fcInit(s.cards, s.title, s._id, s.language);
+        // Immediately switch to test mode for those indices
+        fc.testMode = true;
+        fc.active   = [...stats.incorrect_indices];
+        fc.index    = 0;
+        fc.active.forEach(idx => {
+          fc.incorrect.delete(idx);
+          fc.correct.delete(idx);
+        });
+        fcUpdateCounts();
+        document.getElementById('fc-mode-label').textContent = `🎯 Retrying ${fc.active.length} cards from last time`;
+        fcRender();
       }
     };
 

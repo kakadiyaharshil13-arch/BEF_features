@@ -96,6 +96,7 @@ class StudySession(BaseModel):
     correct_count: int
     incorrect_count: int
     total_cards: int
+    incorrect_indices: List[int] = []
     timestamp: datetime = Field(default_factory=datetime.now)
 
 def get_jobs():
