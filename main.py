@@ -12,13 +12,23 @@ from dotenv import load_dotenv
 from google import genai
 import PyPDF2
 import io
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+
 load_dotenv()
-host = os.getenv("host")
-port = int(os.getenv("port"))
+host = os.getenv("host", "localhost")
+port = int(os.getenv("port", 8000))
 app = FastAPI()
+
+# MongoDB Connection
+MONGO_URL = "mongodb://localhost:27017"
+client_db = AsyncIOMotorClient(MONGO_URL)
+db = client_db["ActiveRecall"] # New Database Named Active Recall
+flashcard_sets_collection = db["flashcard_sets"]
+sessions_collection = db["study_sessions"]
 
 # Mount static files
 os.makedirs("static", exist_ok=True)
@@ -70,6 +80,23 @@ class Flashcard(BaseModel):
 class FlashcardSet(BaseModel):
     title: str = Field(description="A short descriptive title for this flashcard set")
     cards: List[Flashcard] = Field(description="List of flashcard question-answer pairs")
+
+class SavedFlashcardSet(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: Optional[str] = Field(None, alias="_id")
+    title: str
+    language: str
+    cards: List[Flashcard]
+    created_at: datetime = Field(default_factory=datetime.now)
+
+class StudySession(BaseModel):
+    set_id: str
+    set_title: str
+    correct_count: int
+    incorrect_count: int
+    total_cards: int
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 def get_jobs():
     with open(JOBS_FILE, "r") as f:
@@ -385,7 +412,7 @@ async def generate_flashcards(
 
 LANGUAGE: {language}
 {card_count_instruction}
-
+\
 Return as JSON.
 """
 
@@ -403,6 +430,47 @@ Return as JSON.
 
     except Exception as e:
         print(f"Flashcard generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# MongoDB Endpoints
+@app.post("/api/save_flashcard_set")
+async def save_flashcard_set(fc_set: SavedFlashcardSet):
+    try:
+        set_dict = fc_set.model_dump(exclude={"id"})
+        result = await flashcard_sets_collection.insert_one(set_dict)
+        return {"id": str(result.inserted_id), "status": "saved"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/flashcard_sets")
+async def get_flashcard_sets():
+    try:
+        sets = []
+        async for s in flashcard_sets_collection.find().sort("created_at", -1):
+            s["_id"] = str(s["_id"])
+            sets.append(s)
+        return sets
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/save_session")
+async def save_session(session: StudySession):
+    try:
+        session_dict = session.model_dump()
+        result = await sessions_collection.insert_one(session_dict)
+        return {"id": str(result.inserted_id), "status": "session_recorded"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/performance")
+async def get_performance():
+    try:
+        sessions = []
+        async for s in sessions_collection.find().sort("timestamp", -1):
+            s["_id"] = str(s["_id"])
+            sessions.append(s)
+        return sessions
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

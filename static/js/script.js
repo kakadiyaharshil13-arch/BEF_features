@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  try {
     // Main Tab Switching
     const mainTabBtns = document.querySelectorAll('[data-main-tab]');
     const containers = {
@@ -30,18 +31,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Tab Switching
-    const tabBtns = document.querySelectorAll('.tab-btn');
+    // Tab Switching (Generic for Input Cards)
+    const tabBtns = document.querySelectorAll('.tab-btn[data-tab]');
     tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const card = btn.closest('.input-card');
             const targetId = btn.getAttribute('data-tab');
+            if (!card || !targetId) return;
             
-            card.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            card.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
             card.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(targetId).classList.remove('hidden');
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) targetEl.classList.remove('hidden');
         });
     });
 
@@ -497,261 +501,426 @@ function renderNotesResult(markdown, topic) {
         resultContainer.classList.add('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
-});
 
-// ============================================================
-//  FLASHCARD ENGINE
-// ============================================================
+    // ============================================================
+    //  FLASHCARD ENGINE
+    // ============================================================
 
-let fc = {
-  cards: [],
-  active: [],
-  index: 0,
-  flipped: false,
-  incorrect: new Set(),
-  correct: new Set(),
-  testMode: false,
-  title: ''
-};
+    let fc = {
+      cards: [],
+      active: [],
+      index: 0,
+      flipped: false,
+      incorrect: new Set(),
+      correct: new Set(),
+      testMode: false,
+      title: '',
+      id: null,
+      language: 'English'
+    };
 
-// --- Source Tab Switch ---
-document.querySelectorAll('[data-fc-src]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-fc-src]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const src = btn.getAttribute('data-fc-src');
-    document.getElementById('fc-topic-input').classList.toggle('hidden', src !== 'topic');
-    document.getElementById('fc-content-input').classList.toggle('hidden', src !== 'content');
-    
-    // Auto-set to "Auto" (0) when switching to content mode to cover all data
-    if (src === 'content') {
-        document.getElementById('fc-num-cards').value = "0";
+    // --- Sub-Tab Switching (Generate / Saved / Stats) ---
+    document.querySelectorAll('[data-fc-tab]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = btn.getAttribute('data-fc-tab');
+        document.querySelectorAll('[data-fc-tab]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        document.querySelectorAll('.fc-sub-container').forEach(c => c.classList.add('hidden'));
+        
+        if (target === 'generate') document.getElementById('flashcard-input-panel').classList.remove('hidden');
+        if (target === 'saved') {
+          document.getElementById('fc-saved-panel').classList.remove('hidden');
+          loadSavedSets();
+        }
+        if (target === 'stats') {
+          document.getElementById('fc-performance-panel').classList.remove('hidden');
+          loadPerformance();
+        }
+      });
+    });
+
+    // --- Source Tab Switch ---
+    document.querySelectorAll('[data-fc-src]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-fc-src]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const src = btn.getAttribute('data-fc-src');
+        document.getElementById('fc-topic-input').classList.toggle('hidden', src !== 'topic');
+        document.getElementById('fc-content-input').classList.toggle('hidden', src !== 'content');
+        
+        if (src === 'content') {
+            document.getElementById('fc-num-cards').value = "0";
+        }
+      });
+    });
+
+    // --- Generate Button ---
+    document.getElementById('fc-generate-btn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('fc-generate-btn');
+      const btnText = btn.querySelector('.btn-text');
+      const spinner = btn.querySelector('.spinner');
+
+      const isTopic = document.querySelector('[data-fc-src].active')?.getAttribute('data-fc-src') === 'topic';
+      const topic   = document.getElementById('fc-topic').value.trim();
+      const content = document.getElementById('fc-content').value.trim();
+      const numCards = parseInt(document.getElementById('fc-num-cards').value);
+      const language = document.getElementById('fc-language').value;
+
+      if (isTopic && !topic) { alert('Please enter a topic.'); return; }
+      if (!isTopic && !content) { alert('Please paste some content.'); return; }
+
+      btnText.textContent = 'Generating\u2026';
+      spinner.classList.remove('hidden');
+      btn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        if (isTopic) formData.append('topic', topic);
+        else         formData.append('content', content);
+        formData.append('num_cards', numCards);
+        formData.append('language', language);
+
+        const resp = await fetch('/generate_flashcards', { method: 'POST', body: formData });
+        if (!resp.ok) throw new Error('Generation failed');
+        const data = await resp.json();
+
+        if (!data.cards || data.cards.length === 0) throw new Error('No cards generated');
+
+        console.log('Flashcards generated, attempting to save to MongoDB...');
+
+        // Save to MongoDB
+        let savedId = null;
+        try {
+            const saveResp = await fetch('/api/save_flashcard_set', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: data.title || (isTopic ? topic : 'Flashcard Set'),
+                    language: language,
+                    cards: data.cards
+                })
+            });
+            
+            if (saveResp.ok) {
+                const saveResult = await saveResp.json();
+                savedId = saveResult.id;
+                console.log('Successfully saved to MongoDB with ID:', savedId);
+            } else {
+                const errorData = await saveResp.json();
+                console.error('MongoDB Save Error:', errorData);
+            }
+        } catch (saveErr) {
+            console.error('Failed to connect to save API:', saveErr);
+        }
+
+        fcInit(data.cards, data.title || (isTopic ? topic : 'Flashcard Set'), savedId, language);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btnText.textContent = '\u2728 Generate Flashcards';
+        spinner.classList.add('hidden');
+        btn.disabled = false;
+      }
+    });
+
+    // --- Init ---
+    function fcInit(cards, title, id = null, language = 'English') {
+      fc.cards    = cards;
+      fc.title    = title;
+      fc.id       = id;
+      fc.language = language;
+      fc.active   = cards.map((_, i) => i);
+      fc.index    = 0;
+      fc.flipped  = false;
+      fc.incorrect = new Set();
+      fc.correct   = new Set();
+      fc.testMode  = false;
+
+      document.getElementById('fc-set-title').textContent = title;
+      document.getElementById('fc-mode-label').textContent = `Studying all ${cards.length} cards`;
+      document.getElementById('fc-incorrect-count').textContent = '0';
+      document.getElementById('fc-correct-count').textContent   = '0';
+      document.getElementById('fc-completion').classList.add('hidden');
+      document.getElementById('fc-card-wrapper').style.display = 'block';
+
+      document.querySelectorAll('.fc-sub-container').forEach(c => c.classList.add('hidden'));
+      document.getElementById('flashcard-viewer').classList.remove('hidden');
+
+      fcRender();
     }
-  });
-});
 
-// --- Register Flashcards tab is handled by main logic above ---
+    // --- Render current card ---
+    function fcRender() {
+      const card = document.getElementById('fc-card');
+      card.style.transition = 'none';
+      card.classList.remove('is-flipped');
+      fc.flipped = false;
+      setTimeout(() => { card.style.transition = ''; }, 20);
 
-// --- Generate Button ---
-document.getElementById('fc-generate-btn')?.addEventListener('click', async () => {
-  const btn = document.getElementById('fc-generate-btn');
-  const btnText = btn.querySelector('.btn-text');
-  const spinner = btn.querySelector('.spinner');
+      const cardIndex = fc.active[fc.index];
+      const data = fc.cards[cardIndex];
+      const total = fc.active.length;
+      const pos   = fc.index + 1;
 
-  const isTopic = document.querySelector('[data-fc-src].active')?.getAttribute('data-fc-src') === 'topic';
-  const topic   = document.getElementById('fc-topic').value.trim();
-  const content = document.getElementById('fc-content').value.trim();
-  const numCards = parseInt(document.getElementById('fc-num-cards').value);
-  const language = document.getElementById('fc-language').value;
+      document.getElementById('fc-question-text').textContent = data.question;
+      document.getElementById('fc-answer-text').textContent   = data.answer;
+      document.getElementById('fc-counter').textContent      = `${pos} / ${total}`;
+      document.getElementById('fc-counter-back').textContent = `${pos} / ${total}`;
 
-  if (isTopic && !topic) { alert('Please enter a topic.'); return; }
-  if (!isTopic && !content) { alert('Please paste some content.'); return; }
+      const pct = total > 1 ? ((pos - 1) / (total - 1)) * 100 : 100;
+      document.getElementById('fc-progress-bar').style.width = pct + '%';
 
-  btnText.textContent = 'Generating\u2026';
-  spinner.classList.remove('hidden');
-  btn.disabled = true;
+      document.getElementById('fc-completion').classList.add('hidden');
+      document.getElementById('fc-card-wrapper').style.display = 'block';
+    }
 
-  try {
-    const formData = new FormData();
-    if (isTopic) formData.append('topic', topic);
-    else         formData.append('content', content);
-    formData.append('num_cards', numCards);
-    formData.append('language', language);
+    // --- Flip ---
+    window.fcFlipCard = () => {
+      const card = document.getElementById('fc-card');
+      fc.flipped = !fc.flipped;
+      card.classList.toggle('is-flipped', fc.flipped);
+    };
 
-    const resp = await fetch('/generate_flashcards', { method: 'POST', body: formData });
-    if (!resp.ok) throw new Error('Generation failed');
-    const data = await resp.json();
+    // --- Navigation ---
+    window.fcNext = () => {
+      if (fc.index < fc.active.length - 1) {
+        fc.index++;
+        fcRender();
+      } else {
+        fcShowCompletion();
+      }
+    };
 
-    if (!data.cards || data.cards.length === 0) throw new Error('No cards generated');
+    window.fcPrev = () => {
+      if (fc.index > 0) {
+        fc.index--;
+        fcRender();
+      }
+    };
 
-    fcInit(data.cards, data.title || (isTopic ? topic : 'Flashcard Set'));
-  } catch (err) {
-    alert('Error: ' + err.message);
-  } finally {
-    btnText.textContent = '\u2728 Generate Flashcards';
-    spinner.classList.add('hidden');
-    btn.disabled = false;
-  }
-});
+    // --- Mark Correct / Incorrect ---
+    window.fcMarkCorrect = () => {
+      const cardIndex = fc.active[fc.index];
+      fc.correct.add(cardIndex);
+      fc.incorrect.delete(cardIndex);
+      fcUpdateCounts();
+      fcNext();
+    };
 
-// --- Init ---
-function fcInit(cards, title) {
-  fc.cards    = cards;
-  fc.title    = title;
-  fc.active   = cards.map((_, i) => i);
-  fc.index    = 0;
-  fc.flipped  = false;
-  fc.incorrect = new Set();
-  fc.correct   = new Set();
-  fc.testMode  = false;
+    window.fcMarkIncorrect = () => {
+      const cardIndex = fc.active[fc.index];
+      fc.incorrect.add(cardIndex);
+      fc.correct.delete(cardIndex);
+      fcUpdateCounts();
+      fcNext();
+    };
 
-  document.getElementById('fc-set-title').textContent = title;
-  document.getElementById('fc-mode-label').textContent = `Studying all ${cards.length} cards`;
-  document.getElementById('fc-incorrect-count').textContent = '0';
-  document.getElementById('fc-correct-count').textContent   = '0';
-  document.getElementById('fc-completion').classList.add('hidden');
-  document.getElementById('fc-card-wrapper').style.display = 'block';
+    function fcUpdateCounts() {
+      document.getElementById('fc-incorrect-count').textContent = fc.incorrect.size;
+      document.getElementById('fc-correct-count').textContent   = fc.correct.size;
+    }
 
-  document.getElementById('flashcard-input-panel').classList.add('hidden');
-  document.getElementById('flashcard-viewer').classList.remove('hidden');
+    // --- Shuffle ---
+    window.fcShuffle = () => {
+      for (let i = fc.active.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [fc.active[i], fc.active[j]] = [fc.active[j], fc.active[i]];
+      }
+      fc.index = 0;
+      fcRender();
+    };
 
-  fcRender();
-}
+    // --- Restart ---
+    window.fcRestart = () => {
+      fc.active    = fc.cards.map((_, i) => i);
+      fc.index     = 0;
+      fc.incorrect = new Set();
+      fc.correct   = new Set();
+      fc.testMode  = false;
+      document.getElementById('fc-mode-label').textContent = `Studying all ${fc.cards.length} cards`;
+      fcUpdateCounts();
+      fcRender();
+    };
 
-// --- Render current card ---
-function fcRender() {
-  const card = document.getElementById('fc-card');
-  card.style.transition = 'none';
-  card.classList.remove('is-flipped');
-  fc.flipped = false;
-  setTimeout(() => { card.style.transition = ''; }, 20);
+    // --- Test Mode ---
+    window.fcStartTestMode = () => {
+      if (fc.incorrect.size === 0) {
+        alert('No incorrect cards to test! Mark some cards as incorrect first.');
+        return;
+      }
+      fc.testMode = true;
+      fc.active   = [...fc.incorrect];
+      fc.index    = 0;
 
-  const cardIndex = fc.active[fc.index];
-  const data = fc.cards[cardIndex];
-  const total = fc.active.length;
-  const pos   = fc.index + 1;
+      fc.active.forEach(idx => {
+        fc.incorrect.delete(idx);
+        fc.correct.delete(idx);
+      });
+      fcUpdateCounts();
 
-  document.getElementById('fc-question-text').textContent = data.question;
-  document.getElementById('fc-answer-text').textContent   = data.answer;
-  document.getElementById('fc-counter').textContent      = `${pos} / ${total}`;
-  document.getElementById('fc-counter-back').textContent = `${pos} / ${total}`;
+      document.getElementById('fc-mode-label').textContent = `🎯 Testing ${fc.active.length} incorrect card${fc.active.length > 1 ? 's' : ''}`;
+      document.getElementById('fc-completion').classList.add('hidden');
+      document.getElementById('fc-card-wrapper').style.display = 'block';
+      fcRender();
+    };
 
-  const pct = total > 1 ? ((pos - 1) / (total - 1)) * 100 : 100;
-  document.getElementById('fc-progress-bar').style.width = pct + '%';
+    // --- Completion Screen ---
+    async function fcShowCompletion() {
+      document.getElementById('fc-card-wrapper').style.display = 'none';
+      
+      const total     = fc.cards.length;
+      const correct   = fc.correct.size;
+      const incorrect = fc.incorrect.size;
 
-  document.getElementById('fc-completion').classList.add('hidden');
-  document.getElementById('fc-card-wrapper').style.display = 'block';
-}
+      document.getElementById('fc-final-score').textContent =
+        `\u2714 ${correct} correct  |  \u2718 ${incorrect} incorrect  |  ${total - correct - incorrect} unmarked`;
 
-// --- Flip ---
-function fcFlipCard() {
-  const card = document.getElementById('fc-card');
-  fc.flipped = !fc.flipped;
-  card.classList.toggle('is-flipped', fc.flipped);
-}
+      const retryBtn = document.getElementById('fc-retry-incorrect-btn');
+      retryBtn.style.display = fc.incorrect.size > 0 ? 'inline-block' : 'none';
 
-// --- Navigation ---
-function fcNext() {
-  if (fc.index < fc.active.length - 1) {
-    fc.index++;
-    fcRender();
-  } else {
-    fcShowCompletion();
-  }
-}
+      document.getElementById('fc-completion').classList.remove('hidden');
 
-function fcPrev() {
-  if (fc.index > 0) {
-    fc.index--;
-    fcRender();
-  }
-}
+      // Save Session to MongoDB
+      try {
+        await fetch('/api/save_session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            set_id: fc.id || 'temp',
+            set_title: fc.title,
+            correct_count: correct,
+            incorrect_count: incorrect,
+            total_cards: total
+          })
+        });
+      } catch (err) {
+        console.error('Failed to save study session:', err);
+      }
+    }
 
-// --- Mark Correct / Incorrect ---
-function fcMarkCorrect() {
-  const cardIndex = fc.active[fc.index];
-  fc.correct.add(cardIndex);
-  fc.incorrect.delete(cardIndex);
-  fcUpdateCounts();
-  fcNext();
-}
+    // --- MongoDB Loading Logic ---
+    async function loadSavedSets() {
+      const container = document.getElementById('fc-saved-list');
+      container.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1/-1;">Loading saved sets...</p>';
 
-function fcMarkIncorrect() {
-  const cardIndex = fc.active[fc.index];
-  fc.incorrect.add(cardIndex);
-  fc.correct.delete(cardIndex);
-  fcUpdateCounts();
-  fcNext();
-}
+      try {
+        const resp = await fetch('/api/flashcard_sets');
+        const sets = await resp.json();
 
-function fcUpdateCounts() {
-  document.getElementById('fc-incorrect-count').textContent = fc.incorrect.size;
-  document.getElementById('fc-correct-count').textContent   = fc.correct.size;
-}
+        if (sets.length === 0) {
+          container.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1/-1;">No saved sets found. Generate some first!</p>';
+          return;
+        }
 
-// --- Shuffle ---
-function fcShuffle() {
-  for (let i = fc.active.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [fc.active[i], fc.active[j]] = [fc.active[j], fc.active[i]];
-  }
-  fc.index = 0;
-  fcRender();
-}
+        container.innerHTML = sets.map(s => `
+          <div class="job-item" style="padding: 15px; border: 1px solid #eee; border-radius: 12px; cursor: pointer; transition: transform 0.2s; background: white;" 
+               onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'"
+               onclick="viewSavedSet('${s._id}')">
+            <div style="font-weight: 700; color: var(--primary-orange); margin-bottom: 8px;">${s.title}</div>
+            <div style="font-size: 13px; color: #666;">${s.cards.length} Cards • ${s.language}</div>
+            <div style="font-size: 11px; color: #999; margin-top: 10px;">Saved: ${new Date(s.created_at).toLocaleDateString()}</div>
+          </div>
+        `).join('');
 
-// --- Restart ---
-function fcRestart() {
-  fc.active    = fc.cards.map((_, i) => i);
-  fc.index     = 0;
-  fc.incorrect = new Set();
-  fc.correct   = new Set();
-  fc.testMode  = false;
-  document.getElementById('fc-mode-label').textContent = `Studying all ${fc.cards.length} cards`;
-  fcUpdateCounts();
-  fcRender();
-}
+        window.savedSetsCache = sets;
+      } catch (err) {
+        container.innerHTML = `<p style="color: red; text-align: center; grid-column: 1/-1;">Error: ${err.message}</p>`;
+      }
+    }
 
-// --- Test Mode ---
-function fcStartTestMode() {
-  if (fc.incorrect.size === 0) {
-    alert('No incorrect cards to test! Mark some cards as incorrect first.');
-    return;
-  }
-  fc.testMode = true;
-  fc.active   = [...fc.incorrect];
-  fc.index    = 0;
+    window.viewSavedSet = (id) => {
+      const s = window.savedSetsCache.find(x => x._id === id);
+      if (s) {
+        fcInit(s.cards, s.title, s._id, s.language);
+      }
+    };
 
-  // Clear current status for the cards being re-tested to reset session counts
-  fc.active.forEach(idx => {
-    fc.incorrect.delete(idx);
-    fc.correct.delete(idx);
-  });
-  fcUpdateCounts();
+    async function loadPerformance() {
+      const summary = document.getElementById('fc-stats-summary');
+      const list = document.getElementById('fc-performance-list');
+      
+      summary.innerHTML = '<p style="width:100%">Loading stats...</p>';
+      list.innerHTML = '';
 
-  document.getElementById('fc-mode-label').textContent = `🎯 Testing ${fc.active.length} incorrect card${fc.active.length > 1 ? 's' : ''}`;
-  document.getElementById('fc-completion').classList.add('hidden');
-  document.getElementById('fc-card-wrapper').style.display = 'block';
-  fcRender();
-}
+      try {
+        const resp = await fetch('/api/performance');
+        const sessions = await resp.json();
 
-// --- Completion Screen ---
-function fcShowCompletion() {
-  document.getElementById('fc-card-wrapper').style.display = 'none';
-  
-  // Show overall progress across the entire set
-  const total     = fc.cards.length;
-  const correct   = fc.correct.size;
-  const incorrect = fc.incorrect.size;
+        if (sessions.length === 0) {
+          summary.innerHTML = '';
+          list.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">No study history yet. Start studying your flashcards!</p>';
+          return;
+        }
 
-  document.getElementById('fc-final-score').textContent =
-    `\u2714 ${correct} correct  |  \u2718 ${incorrect} incorrect  |  ${total - correct - incorrect} unmarked`;
+        const totalSessions = sessions.length;
+        const totalCorrect = sessions.reduce((acc, s) => acc + s.correct_count, 0);
+        const totalIncorrect = sessions.reduce((acc, s) => acc + s.incorrect_count, 0);
+        const avgAccuracy = Math.round((totalCorrect / (totalCorrect + totalIncorrect || 1)) * 100);
 
-  const retryBtn = document.getElementById('fc-retry-incorrect-btn');
-  retryBtn.style.display = fc.incorrect.size > 0 ? 'inline-block' : 'none';
+        summary.innerHTML = `
+          <div style="flex: 1; padding: 15px; background: #fff8f0; border-radius: 12px;">
+            <div style="font-size: 24px; font-weight: 800; color: var(--primary-orange);">${totalSessions}</div>
+            <div style="font-size: 12px; color: #888; text-transform: uppercase;">Sessions</div>
+          </div>
+          <div style="flex: 1; padding: 15px; background: #f0fff8; border-radius: 12px;">
+            <div style="font-size: 24px; font-weight: 800; color: #2ecc71;">${avgAccuracy}%</div>
+            <div style="font-size: 12px; color: #888; text-transform: uppercase;">Accuracy</div>
+          </div>
+          <div style="flex: 1; padding: 15px; background: #f8f0ff; border-radius: 12px;">
+            <div style="font-size: 24px; font-weight: 800; color: #9b59b6;">${totalCorrect}</div>
+            <div style="font-size: 12px; color: #888; text-transform: uppercase;">Correct</div>
+          </div>
+        `;
 
-  document.getElementById('fc-completion').classList.remove('hidden');
-}
+        list.innerHTML = sessions.map(s => `
+          <div style="padding: 12px; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">${s.set_title}</div>
+              <div style="font-size: 12px; color: #999;">${new Date(s.timestamp).toLocaleString()}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 700; color: ${s.correct_count >= s.incorrect_count ? '#2ecc71' : '#e74c3c'};">
+                ${s.correct_count} / ${s.total_cards}
+              </div>
+              <div style="font-size: 11px; color: #aaa;">${Math.round((s.correct_count/s.total_cards)*100)}% correct</div>
+            </div>
+          </div>
+        `).join('');
 
-// --- Button Wiring ---
-document.getElementById('fc-shuffle-btn')?.addEventListener('click', fcShuffle);
-document.getElementById('fc-test-btn')?.addEventListener('click', fcStartTestMode);
-document.getElementById('fc-restart-btn')?.addEventListener('click', fcRestart);
-document.getElementById('fc-new-btn')?.addEventListener('click', () => {
-  document.getElementById('flashcard-viewer').classList.add('hidden');
-  document.getElementById('flashcard-input-panel').classList.remove('hidden');
-});
+      } catch (err) {
+        summary.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+      }
+    }
 
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-  const viewer = document.getElementById('flashcard-viewer');
-  if (!viewer || viewer.classList.contains('hidden')) return;
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    // --- Button Wiring ---
+    document.getElementById('fc-shuffle-btn')?.addEventListener('click', fcShuffle);
+    document.getElementById('fc-test-btn')?.addEventListener('click', fcStartTestMode);
+    document.getElementById('fc-restart-btn')?.addEventListener('click', fcRestart);
+    document.getElementById('fc-new-btn')?.addEventListener('click', () => {
+      document.getElementById('flashcard-viewer').classList.add('hidden');
+      document.getElementById('flashcard-input-panel').classList.remove('hidden');
+    });
 
-  switch(e.key) {
-    case 'ArrowRight': case 'l': fcNext();          break;
-    case 'ArrowLeft':  case 'h': fcPrev();          break;
-    case ' ':          e.preventDefault(); fcFlipCard(); break;
-    case 'g':          fcMarkCorrect();             break;
-    case 'b':          fcMarkIncorrect();           break;
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      const viewer = document.getElementById('flashcard-viewer');
+      if (!viewer || viewer.classList.contains('hidden')) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+      switch(e.key) {
+        case 'ArrowRight': case 'l': window.fcNext();          break;
+        case 'ArrowLeft':  case 'h': window.fcPrev();          break;
+        case ' ':          e.preventDefault(); window.fcFlipCard(); break;
+        case 'g':          window.fcMarkCorrect();             break;
+        case 'b':          window.fcMarkIncorrect();           break;
+      }
+    });
+
+    console.log("Active Recall initialized successfully.");
+  } catch (e) {
+    console.error("Critical JS Error:", e);
+    alert("Critical JS Error: " + e.message);
   }
 });
