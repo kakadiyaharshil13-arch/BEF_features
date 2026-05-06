@@ -139,7 +139,7 @@ body {
 }
 
 .btn-login {
-  background-color: var(--primary-orange-light);
+  background: linear-gradient(135deg, var(--primary-orange-light) 0%, var(--primary-orange) 100%);
   color: var(--white);
   padding: 12px 35px;
   border-radius: 30px;
@@ -147,12 +147,36 @@ body {
   font-size: 16px;
   border: none;
   cursor: pointer;
-  transition: transform 0.3s, background-color 0.3s;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: 0 4px 15px rgba(243, 113, 48, 0.2);
 }
 
 .btn-login:hover {
-  background-color: var(--primary-orange);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(243, 113, 48, 0.3);
+  filter: brightness(1.05);
+}
+
+.btn-login:active {
+  transform: translateY(-1px) scale(0.97);
+}
+
+.btn-login::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(45deg) translate(-100%, -100%);
+  transition: all 0.6s;
+}
+
+.btn-login:hover::after {
+  transform: rotate(45deg) translate(100%, 100%);
 }
 
 /* Hero Section */
@@ -245,20 +269,28 @@ body {
 
 .tab-btn {
   flex: 1;
-  padding: 12px;
+  padding: 12px 24px;
   border: none;
   background: transparent;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 10px;
   cursor: pointer;
   color: var(--text-muted);
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  font-family: inherit;
+}
+
+.tab-btn:hover {
+  color: var(--primary-orange);
+  background: rgba(243, 113, 48, 0.05);
 }
 
 .tab-btn.active {
   background: var(--white);
   color: var(--primary-orange);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  font-weight: 700;
 }
 
 textarea {
@@ -294,15 +326,50 @@ textarea:focus {
 }
 
 .btn-submit {
-  background-color: var(--primary-orange);
+  background: linear-gradient(135deg, var(--primary-orange) 0%, #D85A1B 100%);
   color: var(--white);
-  padding: 18px 50px;
-  border-radius: 40px;
+  padding: 18px 60px;
+  border-radius: 50px;
   font-weight: 800;
   font-size: 20px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(243, 113, 48, 0.3);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: 0 10px 30px rgba(243, 113, 48, 0.3);
+  letter-spacing: 0.5px;
+}
+
+.btn-submit:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 15px 40px rgba(243, 113, 48, 0.4);
+  filter: brightness(1.1);
+}
+
+.btn-submit:active {
+  transform: translateY(-1px) scale(0.96);
+  box-shadow: 0 5px 15px rgba(243, 113, 48, 0.2);
+}
+
+.btn-submit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: all 0.6s;
+}
+
+.btn-submit:hover::before {
+  left: 100%;
 }
 
 /* Floating Action Button */
@@ -412,34 +479,41 @@ textarea:focus {
 .btn-secondary {
     background-color: var(--secondary-teal);
     color: white;
-    padding: 12px 25px;
+    padding: 12px 30px;
     border-radius: 30px;
-    font-weight: 600;
+    font-weight: 700;
     border: none;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(13, 107, 110, 0.15);
 }
 
 .btn-secondary:hover {
     background-color: #0a5a5d;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(13, 107, 110, 0.25);
 }
 
 .btn-outline {
     background-color: transparent;
     color: var(--primary-orange);
-    padding: 12px 25px;
+    padding: 12px 30px;
     border-radius: 30px;
-    font-weight: 600;
+    font-weight: 700;
     border: 2px solid var(--primary-orange);
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-outline:hover {
     background-color: var(--primary-orange);
     color: white;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(243, 113, 48, 0.2);
+}
+
+.btn-outline:active, .btn-secondary:active {
+    transform: translateY(-1px) scale(0.98);
 }
 
 .btn-reset {
@@ -621,16 +695,19 @@ textarea:focus {
   color: var(--secondary-teal);
   font-size: 20px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   display: flex;
   align-items: center;
   justify-content: center;
   outline: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
 .fc-nav-btn:hover {
+  background: var(--white);
   border-color: var(--secondary-teal);
-  transform: scale(1.08);
+  transform: scale(1.15) translateY(-2px);
+  box-shadow: 0 8px 20px rgba(13, 107, 110, 0.15);
 }
 
 .fc-score-btn {
@@ -647,12 +724,14 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   outline: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
 .fc-score-btn:hover {
-  transform: scale(1.05);
+  transform: scale(1.1) translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
 
 .fc-incorrect-btn { background: #ffe0e0; }
@@ -668,32 +747,37 @@ textarea:focus {
 }
 
 .fc-ctrl-btn {
-  padding: 9px 18px;
-  border-radius: 10px;
-  border: 1px solid #ddd;
-  background: #f8f9fa;
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: var(--white);
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, transform 0.1s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 
 .fc-ctrl-btn:hover {
-  background: #eee;
+  background: #f8fafc;
   color: var(--text-dark);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 12px rgba(0,0,0,0.08);
+  border-color: #cbd5e1;
 }
 
 .fc-ctrl-btn--orange {
-  border-color: var(--primary-orange);
+  border-color: rgba(243, 113, 48, 0.2);
   color: var(--primary-orange);
+  background: rgba(243, 113, 48, 0.02);
 }
 
 .fc-ctrl-btn--orange:hover {
   background: var(--primary-orange);
   color: #fff;
+  border-color: var(--primary-orange);
 }
 
 #fc-card-wrapper:active .fc-card {
