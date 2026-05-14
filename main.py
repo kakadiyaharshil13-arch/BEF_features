@@ -3,58 +3,77 @@ import base64
 import uuid
 import json
 import asyncio
+import logging
+import io
 from datetime import datetime, timedelta
+from typing import List, Optional
+
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from google import genai
 import PyPDF2
-import io
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
-
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 
+# Load environment variables
 load_dotenv()
-host = os.getenv("host", "localhost")
-port = int(os.getenv("port", 8000))
-app = FastAPI()
+
+# Configuration
+HOST = os.getenv("host", "0.0.0.0")
+PORT = int(os.getenv("port", 8000))
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("app.log")
+    ]
+)
+logger = logging.getLogger("ActiveRecallApp")
+
+# FastAPI App Initialization
+app = FastAPI(
+    title="Active Recall API",
+    description="Production-ready API for UPSC evaluation and flashcard generation",
+    version="1.1.0"
+)
+
+# Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # MongoDB Connection
-MONGO_URL = "mongodb://localhost:27017"
 client_db = AsyncIOMotorClient(MONGO_URL)
-db = client_db["ActiveRecall"] # New Database Named Active Recall
+db = client_db["ActiveRecall"]
 flashcard_sets_collection = db["flashcard_sets"]
 sessions_collection = db["study_sessions"]
+jobs_collection = db["jobs"]
 
-# Mount static files
+# Static files and Templates
 os.makedirs("static", exist_ok=True)
-os.makedirs("static/css", exist_ok=True)
-os.makedirs("static/js", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Templates
 os.makedirs("templates", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Gemini Config
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# genai.configure(api_key=GEMINI_API_KEY)
-# model = genai.GenerativeModel('gemini-2.5-flash-lite')
-client = genai.Client()
+# Gemini Client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-JOBS_DIR = "jobs"
-os.makedirs(JOBS_DIR, exist_ok=True)
-JOBS_FILE = os.path.join(JOBS_DIR, "jobs.json")
+# --- Pydantic Models ---
 
-if not os.path.exists(JOBS_FILE):
-    with open(JOBS_FILE, "w") as f:
-        json.dump({}, f)
-
-# Pydantic Models for AI Parsing
 class QAPair(BaseModel):
     question: str = Field(description="The UPSC Mains question text")
     answer: str = Field(description="The student's written answer to the question")
@@ -83,7 +102,6 @@ class FlashcardSet(BaseModel):
 
 class SavedFlashcardSet(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    
     id: Optional[str] = Field(None, alias="_id")
     title: str
     language: str
@@ -99,25 +117,29 @@ class StudySession(BaseModel):
     incorrect_indices: List[int] = []
     timestamp: datetime = Field(default_factory=datetime.now)
 
-def get_jobs():
-    with open(JOBS_FILE, "r") as f:
-        return json.load(f)
+# --- Helper Functions ---
 
-def save_jobs(jobs):
-    with open(JOBS_FILE, "w") as f:
-        json.dump(jobs, f, indent=4)
+async def save_job(job_id: str, job_data: dict):
+    await jobs_collection.update_one(
+        {"job_id": job_id},
+        {"$set": job_data},
+        upsert=True
+    )
 
-def update_job_status(job_id, status, results=None):
-    jobs = get_jobs()
-    if job_id in jobs:
-        jobs[job_id]["status"] = status
-        if results:
-            jobs[job_id]["results"] = results
-        save_jobs(jobs)
+async def update_job_status(job_id: str, status: str, results: Optional[list] = None):
+    update_data = {"status": status}
+    if results is not None:
+        update_data["results"] = results
+    await jobs_collection.update_one(
+        {"job_id": job_id},
+        {"$set": update_data}
+    )
+    logger.info(f"Job {job_id} status updated to: {status}")
 
-async def process_bulk_pdf(job_id: str, pdf_text: str, language: str, max_marks: str, system_prompt: str = None):
+# --- Background Processing ---
+
+async def process_bulk_pdf(job_id: str, pdf_text: str, language: str, max_marks: str, system_prompt: Optional[str] = None):
     try:
-        # Step 1: Split PDF into 20 Q&A pairs using Gemini
         split_prompt = f"""
         Analyze the following UPSC Mains content extracted from a PDF. 
         It contains UP TO 20 questions and their respective answers.
@@ -125,7 +147,7 @@ async def process_bulk_pdf(job_id: str, pdf_text: str, language: str, max_marks:
         Each object MUST have 'question' and 'answer' keys.
         
         Content:
-        {pdf_text[:50000]} # Increased limit to accommodate 20 UPSC answers
+        {pdf_text[:50000]}
         """
         
         split_response = client.models.generate_content(
@@ -137,26 +159,25 @@ async def process_bulk_pdf(job_id: str, pdf_text: str, language: str, max_marks:
             }
         )
         
-        # Use Pydantic to parse and validate
         qa_data = QAPairList.model_validate_json(split_response.text)
         items = qa_data.pairs
-            
         results = []
-        # Step 2: Evaluate each pair
         current_system_prompt = system_prompt if system_prompt and system_prompt.strip() else SYSTEM_PROMPT
         
-        for i, item in enumerate(items[:20]): # Ensure max 20
-            q_text = item.get('question', '')
-            a_text = item.get('answer', '')
+        for i, item in enumerate(items[:20]):
+            q_text = item.question
+            a_text = item.answer
             
             if not q_text or not a_text:
                 continue
                 
-            parts = [current_system_prompt]
-            parts.append(f"EVALUATION LANGUAGE: {language}")
-            parts.append(f"MAX MARKS: {max_marks}")
-            parts.append(f"Question: {q_text}")
-            parts.append(f"Answer: {a_text}")
+            parts = [
+                current_system_prompt,
+                f"EVALUATION LANGUAGE: {language}",
+                f"MAX MARKS: {max_marks}",
+                f"Question: {q_text}",
+                f"Answer: {a_text}"
+            ]
             
             resp = client.models.generate_content(
                 model='gemini-2.5-flash-lite',
@@ -167,75 +188,59 @@ async def process_bulk_pdf(job_id: str, pdf_text: str, language: str, max_marks:
                 }
             )
             
-            # Parse to ensure it's valid
-            eval_data = EvaluationResponse.model_validate_json(resp.text)
+            results.append({
+                "index": i + 1,
+                "question": q_text,
+                "result": resp.text
+            })
             
-            # Create a model instance for the result
-            eval_item = EvaluationItem(
-                index=i + 1,
-                question=q_text,
-                result=resp.text # Keep the JSON string
-            )
+            await asyncio.sleep(1) # Reduced delay for production but kept for safety
             
-            results.append(eval_item.model_dump())
-            
-            # Small delay to avoid rate limits
-            await asyncio.sleep(2)
-            
-        update_job_status(job_id, "completed", results)
+        await update_job_status(job_id, "completed", results)
         
     except Exception as e:
-        print(f"Error in background processing: {e}")
-        update_job_status(job_id, f"error: {str(e)}")
+        logger.error(f"Error in background processing job {job_id}: {e}", exc_info=True)
+        await update_job_status(job_id, f"error: {str(e)}")
+
+# --- System Prompts ---
 
 NOTES_SYSTEM_PROMPT = """
 You are an elite UPSC academic content creator. Your goal is to provide comprehensive, high-scoring study notes for UPSC Mains.
-For the given topic, structure your response as follows:
-
+Structure your response as follows:
 1. [TITLE]
-   A clear, academic title for the notes.
-
 2. [INTRODUCTION]
-   Define the topic and its relevance to the UPSC syllabus/current affairs.
-
-3. [CORE DIMENSIONS]
-   Break down the topic into multiple dimensions (e.g., Historical, Economic, Social, Political, Legal, Ethical, etc. as applicable). Use clear bullet points and sub-headings.
-
+3. [CORE DIMENSIONS] (Historical, Economic, Social, Political, etc.)
 4. [PROS & CONS / CHALLENGES & OPPORTUNITIES]
-   Provide a balanced analysis of the issue.
-
 5. [WAY FORWARD / CONCLUSION]
-   Provide a constructive, forward-looking conclusion with suggestions or government initiatives where relevant.
 
-Important rules:
-- Use Markdown for formatting.
-- The notes MUST be entirely in the requested language.
-- Ensure the content is academic, data-driven, and neutral.
+Important: Use Markdown. Entirely in requested language. Academic and neutral.
 """
 
 SYSTEM_PROMPT = """
-You are an expert UPSC Mains answer evaluator with deep knowledge of the UPSC Civil Services Examination pattern, GS Paper expectations, and what UPSC examiners look for in high-scoring answers.
+You are an expert UPSC Mains answer evaluator.
+Evaluate the user's answer and return a structured JSON response:
+- score: Numerical score out of MAX MARKS (UPSC standards).
+- evaluation: Strong points, structure, etc. (bullet points).
+- mistakes: Specific missing points and 2-4 improvements.
+- ideal_answer: Comprehensive model answer.
 
-The user will provide:
-1. A UPSC Mains question (as text or image)
-2. Their own written answer to that question (as text or image)
-
-Your task is to evaluate the user's answer and return a structured JSON response matching this schema:
-- score: Provide a single numerical score out of the specified MAX MARKS. Base this on UPSC standards where 50-60% is considered excellent.
-- evaluation: Critically evaluate the answer using bullet points. Focus on strong points, structure (intro-body-conclusion), and UPSC-appropriateness.
-- mistakes: Detailed breakdown of what was missing and 2 to 4 specific, actionable improvements.
-- ideal_answer: Write a comprehensive, well-structured model answer.
-
-Important rules:
-- Use Markdown for formatting within the text fields.
-- The evaluation, mistakes, and ideal_answer fields MUST be entirely in the specified evaluation language.
-- Ensure the response is a valid JSON object.
+Rules: Use Markdown. Entirely in specified language. Valid JSON.
 """
 
+FLASHCARD_SYSTEM_PROMPT = """
+You are an expert academic flashcard creator specializing in UPSC Civil Services exam content.
+Generate high-quality, exam-focused flashcards.
+- clear, specific questions.
+- concise answers (2-4 sentences).
+- Focus on facts, definitions, dates, comparisons.
+- All content in specified language.
+"""
+
+# --- Endpoints ---
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/evaluate")
 async def evaluate(
@@ -249,31 +254,24 @@ async def evaluate(
 ):
     try:
         current_system_prompt = system_prompt if system_prompt and system_prompt.strip() else SYSTEM_PROMPT
-        parts = [current_system_prompt]
-        
-        # Build prompt parts
-        parts.append(f"EVALUATION LANGUAGE: You MUST provide the evaluation, mistakes, and ideal answer entirely in {language}.")
-        parts.append(f"MAX MARKS: The maximum score for this question is {max_marks}. Please provide the score out of {max_marks} (e.g. X/{max_marks}).")
+        parts = [
+            current_system_prompt,
+            f"EVALUATION LANGUAGE: You MUST provide the evaluation, mistakes, and ideal answer entirely in {language}.",
+            f"MAX MARKS: The maximum score for this question is {max_marks}."
+        ]
 
         if question_text:
             parts.append(f"Question: {question_text}")
-        
         if answer_text:
             parts.append(f"Answer: {answer_text}")
             
         if question_image and question_image.filename:
             q_image_data = await question_image.read()
-            parts.append({
-                "mime_type": question_image.content_type,
-                "data": q_image_data
-            })
+            parts.append({"mime_type": question_image.content_type, "data": q_image_data})
             
         if answer_image and answer_image.filename:
             a_image_data = await answer_image.read()
-            parts.append({
-                "mime_type": answer_image.content_type,
-                "data": a_image_data
-            })
+            parts.append({"mime_type": answer_image.content_type, "data": a_image_data})
 
         response = client.models.generate_content(
             model='gemini-2.5-flash-lite',
@@ -283,12 +281,11 @@ async def evaluate(
                 'response_schema': EvaluationResponse
             }
         )
-        eval_data = EvaluationResponse.model_validate_json(response.text)
-        return eval_data.model_dump()
+        return EvaluationResponse.model_validate_json(response.text).model_dump()
         
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Evaluation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Evaluation failed. Please try again.")
 
 @app.post("/evaluate_pdf")
 async def evaluate_pdf(
@@ -299,19 +296,16 @@ async def evaluate_pdf(
     system_prompt: str = Form(None)
 ):
     try:
-        # Read PDF content
         contents = await pdf_file.read()
         pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
-        pdf_text = ""
-        for page in pdf_reader.pages:
-            pdf_text += page.extract_text() + "\n"
+        pdf_text = "".join([page.extract_text() + "\n" for page in pdf_reader.pages])
         
         job_id = str(uuid.uuid4())
         created_at = datetime.now()
         available_at = created_at + timedelta(seconds=10)
         
-        jobs = get_jobs()
-        jobs[job_id] = {
+        job_data = {
+            "job_id": job_id,
             "status": "processing",
             "created_at": created_at.isoformat(),
             "available_at": available_at.isoformat(),
@@ -320,26 +314,23 @@ async def evaluate_pdf(
             "system_prompt": system_prompt,
             "results": []
         }
-        save_jobs(jobs)
-        
+        await save_job(job_id, job_data)
         background_tasks.add_task(process_bulk_pdf, job_id, pdf_text, language, max_marks, system_prompt)
         
         return {"job_id": job_id, "available_at": available_at.isoformat()}
         
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"PDF evaluation upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process PDF.")
 
 @app.get("/job_status/{job_id}")
 async def get_job_status(job_id: str):
-    jobs = get_jobs()
-    if job_id not in jobs:
+    job = await jobs_collection.find_one({"job_id": job_id})
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
         
-    job = jobs[job_id]
     now = datetime.now()
     available_at = datetime.fromisoformat(job["available_at"])
-    
     is_available = now >= available_at
     
     response = {
@@ -362,34 +353,14 @@ async def generate_notes(
     language: str = Form("English")
 ):
     try:
-        parts = [NOTES_SYSTEM_PROMPT]
-        parts.append(f"TOPIC: {topic}")
-        parts.append(f"LANGUAGE: {language}")
-        
         response = client.models.generate_content(
             model='gemini-2.5-flash-lite',
-            contents=parts,
+            contents=[NOTES_SYSTEM_PROMPT, f"TOPIC: {topic}", f"LANGUAGE: {language}"],
         )
         return {"result": response.text}
-        
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-FLASHCARD_SYSTEM_PROMPT = """
-You are an expert academic flashcard creator specializing in UPSC Civil Services exam content.
-Your task is to generate high-quality, exam-focused flashcards from the given content or topic.
-
-Rules:
-- Each question must be clear, specific, and test one concept at a time.
-- Answers must be concise yet complete (2-4 sentences max).
-- Focus on facts, definitions, dates, comparisons, and cause-effect relationships.
-- Make questions in the style of UPSC Mains/Prelims where appropriate.
-- Vary question types: What, Why, How, Compare, Define, Enumerate.
-- The title should reflect the topic of the flashcard set.
-- Generate exactly the number of cards requested.
-- All content must be in the specified language.
-"""
+        logger.error(f"Notes generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate notes.")
 
 @app.post("/generate_flashcards")
 async def generate_flashcards(
@@ -400,40 +371,25 @@ async def generate_flashcards(
 ):
     try:
         if not topic and not content:
-            raise HTTPException(status_code=400, detail="Provide either a topic or content to generate flashcards.")
+            raise HTTPException(status_code=400, detail="Provide topic or content.")
 
         source = f"TOPIC: {topic}" if topic else f"CONTENT:\n{content[:15000]}"
+        card_count_instr = f"Generate exactly {num_cards} cards." if num_cards > 0 else "Generate 10-60 appropriate cards."
+
+        prompt = f"{FLASHCARD_SYSTEM_PROMPT}\n\n{source}\n\nLANGUAGE: {language}\n{card_count_instr}\nReturn as JSON."
         
-        # If num_cards is 0, we ask the AI to determine the count
-        card_count_instruction = f"Generate exactly {num_cards} flashcards." if num_cards > 0 else "Generate an appropriate number of flashcards (between 10 and 60) to comprehensively cover all key points in the content without missing significant details."
-
-        prompt = f"""{FLASHCARD_SYSTEM_PROMPT}
-
-{source}
-
-LANGUAGE: {language}
-{card_count_instruction}
-\
-Return as JSON.
-"""
-
         response = client.models.generate_content(
             model='gemini-2.5-flash-lite',
             contents=[prompt],
-            config={
-                'response_mime_type': 'application/json',
-                'response_schema': FlashcardSet
-            }
+            config={'response_mime_type': 'application/json', 'response_schema': FlashcardSet}
         )
-
-        flashcard_data = FlashcardSet.model_validate_json(response.text)
-        return flashcard_data.model_dump()
-
+        return FlashcardSet.model_validate_json(response.text).model_dump()
     except Exception as e:
-        print(f"Flashcard generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Flashcard generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate flashcards.")
 
-# MongoDB Endpoints
+# --- MongoDB API Endpoints ---
+
 @app.post("/api/save_flashcard_set")
 async def save_flashcard_set(fc_set: SavedFlashcardSet):
     try:
@@ -441,7 +397,8 @@ async def save_flashcard_set(fc_set: SavedFlashcardSet):
         result = await flashcard_sets_collection.insert_one(set_dict)
         return {"id": str(result.inserted_id), "status": "saved"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to save flashcard set: {e}")
+        raise HTTPException(status_code=500, detail="Database save failed.")
 
 @app.get("/api/flashcard_sets")
 async def get_flashcard_sets():
@@ -452,16 +409,17 @@ async def get_flashcard_sets():
             sets.append(s)
         return sets
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to fetch flashcard sets: {e}")
+        raise HTTPException(status_code=500, detail="Database fetch failed.")
 
 @app.post("/api/save_session")
 async def save_session(session: StudySession):
     try:
-        session_dict = session.model_dump()
-        result = await sessions_collection.insert_one(session_dict)
+        result = await sessions_collection.insert_one(session.model_dump())
         return {"id": str(result.inserted_id), "status": "session_recorded"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to save session: {e}")
+        raise HTTPException(status_code=500, detail="Database save failed.")
 
 @app.get("/api/performance")
 async def get_performance():
@@ -472,8 +430,9 @@ async def get_performance():
             sessions.append(s)
         return sessions
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to fetch performance: {e}")
+        raise HTTPException(status_code=500, detail="Database fetch failed.")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=host, port=port,reload=True)
+    uvicorn.run("main:app", host=HOST, port=PORT, reload=False, access_log=True)
